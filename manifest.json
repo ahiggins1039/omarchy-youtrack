@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "al.youtrack",
+  "name": "YouTrack",
+  "version": "1.0.0",
+  "author": "Allan Higgins",
+  "license": "MIT",
+  "description": "Tickets assigned to you in YouTrack, counted by priority in the bar and listed by priority in a popup.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "YouTrack",
+    "description": "Shows P0:1 P1:4 P2:7 in the bar; click for the tickets grouped by priority.",
+    "category": "Info",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "refreshIntervalSec": 300,
+      "query": "for: me #Unresolved",
+      "emptyLabel": "YT:0"
+    },
+    "schema": [
+      {
+        "key": "query",
+        "type": "string",
+        "label": "YouTrack query",
+        "defaultValue": "for: me #Unresolved",
+        "description": "Any YouTrack search. 'for: me' is the assignee filter."
+      },
+      {
+        "key": "refreshIntervalSec",
+        "type": "integer",
+        "label": "Refresh interval (seconds)",
+        "min": 30,
+        "max": 3600,
+        "step": 30,
+        "defaultValue": 300
+      },
+      {
+        "key": "emptyLabel",
+        "type": "string",
+        "label": "Label when nothing matches",
+        "defaultValue": "YT:0"
+      }
+    ]
+  }
+}

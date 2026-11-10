@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Refuses commits that stage credentials. Enable with: git config core.hooksPath .githooks
+set -uo pipefail
+
+status=0
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+for file in $staged; do
+  case $file in
+    *.env.example) ;;
+    *.env|.env*|*/.env*)
+      echo "pre-commit: refusing to commit env file: $file" >&2
+      status=1 ;;
+  esac
+done
+
+# YouTrack permanent tokens, bearer headers, GitHub tokens, private keys.
+pattern='perm[:-][A-Za-z0-9._-]{12,}|Bearer [A-Za-z0-9._-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+if hits=$(git diff --cached -U0 | grep -E '^\+' | grep -nE "$pattern"); then
+  echo "pre-commit: staged changes look like they contain a secret:" >&2
+  echo "$hits" >&2
+  status=1
+fi
+
+exit $status

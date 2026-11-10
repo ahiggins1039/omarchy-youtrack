@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Prints the YouTrack issues matched by a query as one compact JSON document.
+#
+# Always exits 0 and always prints JSON, including for failures, so the bar
+# widget has a single shape to parse and can render the error itself:
+#
+#   {"ok":true,"query":"...","issues":[{"id":"sys-1","priority":"P1",...}]}
+#   {"ok":false,"error":"...","issues":[]}
+#
+# Usage: youtrack-fetch [query]
+
+set -uo pipefail
+
+config_file="${YOUTRACK_CONFIG:-$HOME/.config/omarchy/youtrack.env}"
+
+fail() {
+  jq -nc --arg error "$1" '{ok: false, error: $error, issues: []}'
+  exit 0
+}
+
+command -v jq >/dev/null 2>&1 || {
+  printf '{"ok":false,"error":"jq is not installed","issues":[]}\n'
+  exit 0
+}
+command -v curl >/dev/null 2>&1 || fail "curl is not installed"
+[[ -r $config_file ]] || fail "Cannot read $config_file"
+
+set -a
+# shellcheck disable=SC1090
+source "$config_file" || fail "Could not read $config_file"
+set +a
+
+url="${YOUTRACK_URL:-}"
+token="${YOUTRACK_TOKEN:-}"
+[[ -n $url ]] || fail "YOUTRACK_URL is not set in $config_file"
+[[ -n $token ]] || fail "YOUTRACK_TOKEN is not set in $config_file"
+
+query="${1:-${YOUTRACK_QUERY:-}}"
+[[ -n $query ]] || query='for: me #Unresolved'
+
+fields='idReadable,summary,updated,project(shortName),customFields(name,value(name))'
+
+# The status code is appended on its own line so a non-200 body can still be
+# reported rather than silently parsed as an empty issue list.
+response=$(curl -sS --max-time 20 -G "${url%/}/api/issues" \
+  --data-urlencode "query=$query" \
+  --data-urlencode "fields=$fields" \
+  --data-urlencode '$top=500' \
+  -H "Authorization: Bearer $token" \
+  -H 'Accept: application/json' \
+  -w $'\n%{http_code}') || fail "Could not reach YouTrack"
+
+status="${response##*$'\n'}"
+payload="${response%$'\n'*}"
+
+if [[ $status != 200 ]]; then
+  detail=$(jq -r '.error_description // .error // empty' <<<"$payload" 2>/dev/null)
+  fail "YouTrack returned HTTP ${status}${detail:+: $detail}"
+fi
+
+jq -c --arg base "${url%/}" --arg query "$query" '
+  # Custom field values are single objects for enum fields but can arrive as
+  # arrays for multi-value fields, and as null when the field is unset.
+  def name_of($v):
+    if $v == null then ""
+    elif ($v | type) == "array" then (($v | first | .name?) // "")
+    else ($v.name? // "") end;
+  def field($issue; $name):
+    name_of((($issue.customFields // []) | map(select(.name == $name)) | first | .value?));
+
+  {
+    ok: true,
+    query: $query,
+    base: $base,
+    issues: [ .[] | {
+      id: (.idReadable // ""),
+      summary: (.summary // ""),
+      priority: (field(.; "Priority") | if . == "" then "None" else . end),
+      state: field(.; "State"),
+      type: field(.; "Type"),
+      project: (.project.shortName // ""),
+      updated: (.updated // 0),
+      url: ($base + "/issue/" + (.idReadable // ""))
+    } ]
+  }' <<<"$payload" 2>/dev/null || fail "Could not parse the YouTrack response"
