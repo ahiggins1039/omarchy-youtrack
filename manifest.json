@@ -30,7 +30,9 @@
     "defaults": {
       "refreshIntervalSec": 300,
       "query": "for: me #Unresolved",
-      "emptyLabel": "YT:0"
+      "emptyLabel": "YT:0",
+      "priorityField": "",
+      "priorities": ""
     },
     "schema": [
       {
@@ -54,6 +56,20 @@
         "type": "string",
         "label": "Label when nothing matches",
         "defaultValue": "YT:0"
+      },
+      {
+        "key": "priorityField",
+        "type": "string",
+        "label": "Priority field name",
+        "defaultValue": "",
+        "description": "The custom field tickets are grouped by. Blank uses YOUTRACK_PRIORITY_FIELD, else 'Priority'."
+      },
+      {
+        "key": "priorities",
+        "type": "string",
+        "label": "Priority order (most urgent first)",
+        "defaultValue": "",
+        "description": "Comma-separated, optionally Name=BarLabel, e.g. 'Urgent=U, High=H, Low=L'. Blank recognises P0-P4 and YouTrack's defaults."
       }
     ]
   }

@@ -1,13 +1,62 @@
 .pragma library
 
-// Priorities are rendered and counted in this order; anything the project
-// defines outside the list (a renamed level, an unset field) is appended
-// alphabetically after them rather than dropped.
-var PRIORITY_ORDER = ["P0", "P1", "P2", "P3", "P4"]
+// ---------------------------------------------------------------- priorities
+//
+// A "scale" says how priorities rank, which color each takes, and what the bar
+// calls them. Rank 0 is the most urgent: it takes red and turns the pill
+// urgent. Ranks 1-3 are yellow, green and blue; rank 4 and below are gray.
+// Names the scale doesn't know are still counted and listed, after the known
+// ones in alphabetical order, in the surrounding foreground color.
+//
+// With no `priorities` setting the widget recognises both of these, so the
+// P0-P4 convention and YouTrack's out-of-the-box priorities work unconfigured.
+var BUILTIN_SCALES = [
+  [["P0", "P0"], ["P1", "P1"], ["P2", "P2"], ["P3", "P3"], ["P4", "P4"]],
+  [["Show-stopper", "Stop"], ["Critical", "Crit"], ["Major", "Maj"], ["Normal", "Norm"], ["Minor", "Min"]]
+]
 
-function priorityRank(priority) {
-  var index = PRIORITY_ORDER.indexOf(priority)
-  return index === -1 ? PRIORITY_ORDER.length : index
+var RANK_COLOR_KEYS = ["red", "yellow", "green", "blue", "gray"]
+
+function scaleKey(name) {
+  return String(name || "").trim().toLowerCase()
+}
+
+// "Urgent=U, High, Low=L" -> a custom scale in that order. Each entry is a
+// priority name, optionally followed by "=" and its bar label. An empty or
+// blank spec gives the built-in scale.
+function makeScale(spec) {
+  var scale = { ranks: {}, shorts: {} }
+  var entries = String(spec || "").split(",").map(function(e) { return e.trim() }).filter(function(e) { return e !== "" })
+
+  if (entries.length === 0) {
+    for (var s = 0; s < BUILTIN_SCALES.length; s++)
+      for (var i = 0; i < BUILTIN_SCALES[s].length; i++) {
+        scale.ranks[scaleKey(BUILTIN_SCALES[s][i][0])] = i
+        scale.shorts[scaleKey(BUILTIN_SCALES[s][i][0])] = BUILTIN_SCALES[s][i][1]
+      }
+    return scale
+  }
+
+  for (var j = 0; j < entries.length; j++) {
+    var eq = entries[j].indexOf("=")
+    var name = (eq === -1 ? entries[j] : entries[j].slice(0, eq)).trim()
+    var short = eq === -1 ? "" : entries[j].slice(eq + 1).trim()
+    if (name === "" || scaleKey(name) in scale.ranks) continue
+    scale.ranks[scaleKey(name)] = Object.keys(scale.ranks).length
+    if (short !== "") scale.shorts[scaleKey(name)] = short
+  }
+  return scale
+}
+
+var DEFAULT_SCALE = makeScale("")
+
+function priorityRank(priority, scale) {
+  var rank = (scale || DEFAULT_SCALE).ranks[scaleKey(priority)]
+  return rank === undefined ? Infinity : rank
+}
+
+function shortLabel(priority, scale) {
+  return (scale || DEFAULT_SCALE).shorts[scaleKey(priority)] || String(priority)
 }
 
 function parse(text) {
@@ -36,7 +85,7 @@ function parse(text) {
 
 // [{ priority, count, issues }] — one entry per priority that has tickets,
 // highest first, with each group's tickets sorted most-recently-updated first.
-function groupByPriority(issues) {
+function groupByPriority(issues, scale) {
   var buckets = {}
   for (var i = 0; i < issues.length; i++) {
     var priority = String(issues[i].priority || "None")
@@ -51,8 +100,10 @@ function groupByPriority(issues) {
   }
 
   groups.sort(function(a, b) {
-    var byRank = priorityRank(a.priority) - priorityRank(b.priority)
-    return byRank !== 0 ? byRank : (a.priority < b.priority ? -1 : 1)
+    var rankA = priorityRank(a.priority, scale)
+    var rankB = priorityRank(b.priority, scale)
+    if (rankA !== rankB) return rankA < rankB ? -1 : 1
+    return a.priority < b.priority ? -1 : (a.priority > b.priority ? 1 : 0)
   })
   return groups
 }
@@ -66,25 +117,24 @@ function barLabel(groups, emptyLabel) {
   return parts.join(" ")
 }
 
-// Which palette role paints each priority. Anything outside the list — an
-// unset Priority field, a project that renamed its levels — gets "", which
+// Which palette role paints a priority: "" for names outside the scale, which
 // means "leave it the surrounding foreground color".
-var PRIORITY_COLOR_KEYS = { "P0": "red", "P1": "yellow", "P2": "green", "P3": "blue", "P4": "gray" }
-
-function colorKeyFor(priority) {
-  return PRIORITY_COLOR_KEYS[priority] || ""
+function colorKeyFor(priority, scale) {
+  var rank = priorityRank(priority, scale)
+  if (rank === Infinity) return ""
+  return RANK_COLOR_KEYS[Math.min(rank, RANK_COLOR_KEYS.length - 1)]
 }
 
-// The bar pill, one segment per priority so each pair takes its own color:
-// [{ text: "P0:1", colorKey: "red" }, { text: "P1:4", colorKey: "yellow" }, ...]
-function barSegments(groups, emptyLabel, error) {
+// The bar pill, one segment per priority so each pair takes its own color,
+// using the scale's short labels: [{ text: "Crit:1", colorKey: "yellow" }, ...]
+function barSegments(groups, emptyLabel, error, scale) {
   if (error) return [{ text: "YT!", colorKey: "red" }]
   if (groups.length === 0) return [{ text: emptyLabel, colorKey: "" }]
   var segments = []
   for (var i = 0; i < groups.length; i++)
     segments.push({
-      text: groups[i].priority + ":" + groups[i].count,
-      colorKey: colorKeyFor(groups[i].priority)
+      text: shortLabel(groups[i].priority, scale) + ":" + groups[i].count,
+      colorKey: colorKeyFor(groups[i].priority, scale)
     })
   return segments
 }
@@ -134,9 +184,11 @@ function totalCount(groups) {
   return total
 }
 
-function hasPriority(groups, priority) {
+// Whether anything of the most urgent rank (P0, Show-stopper, or the first
+// entry of a custom list) is open.
+function hasTopPriority(groups, scale) {
   for (var i = 0; i < groups.length; i++)
-    if (groups[i].priority === priority && groups[i].count > 0) return true
+    if (groups[i].count > 0 && priorityRank(groups[i].priority, scale) === 0) return true
   return false
 }
 

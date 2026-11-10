@@ -4,8 +4,8 @@ An Omarchy bar widget that shows the [YouTrack](https://www.jetbrains.com/youtra
 tickets assigned to you, counted by priority.
 
 The bar shows one `<priority>:<count>` pair per priority that has open tickets,
-e.g. `P0:1 P1:4 P2:7`. The pill takes the theme's urgent color while any P0 is
-open, and reads `YT!` when the lookup fails. Clicking it opens a popup listing
+e.g. `P0:1 P1:4 P2:7` or `Crit:1 Maj:4 Norm:7`. The pill takes the theme's
+urgent color while anything of the top priority is open, and reads `YT!` when the lookup fails. Clicking it opens a popup listing
 the same tickets under a heading per priority, newest update first, with a
 search box that can also query all of YouTrack.
 
@@ -42,8 +42,9 @@ tooltip says what is missing.
    ```sh
    YOUTRACK_URL="https://example.youtrack.cloud"
    YOUTRACK_TOKEN="perm:..."
-   # Optional; the widget's own setting overrides it.
+   # Optional; the widget's own settings override these.
    YOUTRACK_QUERY="for: me #Unresolved"
+   YOUTRACK_PRIORITY_FIELD="Priority"
    ```
 
    For self-hosted instances, use the URL you open YouTrack at, e.g.
@@ -108,6 +109,9 @@ and override `YOUTRACK_QUERY`:
 - `query` — any YouTrack search (default `for: me #Unresolved`)
 - `refreshIntervalSec` — poll interval, minimum 30 (default 300)
 - `emptyLabel` — bar text when nothing matches (default `YT:0`)
+- `priorityField` — the custom field tickets are grouped by (default
+  `YOUTRACK_PRIORITY_FIELD`, else `Priority`)
+- `priorities` — your own priority order, most urgent first (see below)
 
 `#Unresolved` is about the resolved flag, not the workflow state, so states
 such as `Released` still count. To leave them out:
@@ -120,22 +124,35 @@ At most 500 tickets are fetched per query.
 
 ## Priorities and colors
 
-The widget reads each ticket's `Priority` field. Priorities named `P0` to `P4`
-are ordered and colored from the active theme's `colors.toml`, in both the bar
-pill and the popup's section headings:
+Tickets are grouped by their `Priority` field, or whichever field
+`priorityField` names. Out of the box the widget recognises two scales, so most
+projects need no configuration:
 
-| Priority | Palette role | Falls back to |
-|---|---|---|
-| P0 | `red` / `color1` | the bar's urgent color |
-| P1 | `yellow` / `color3` / `orange` | the theme accent |
-| P2 | `green` / `color2` | the theme accent |
-| P3 | `blue` / `color4` / `cyan` | the theme accent |
-| P4 | `muted` / `color8` / `dark_foreground` | `Color.muted` |
+| Rank | P-levels | YouTrack defaults | Bar label | Palette role | Falls back to |
+|---|---|---|---|---|---|
+| 1 | P0 | Show-stopper | `P0` / `Stop` | `red` / `color1` | the bar's urgent color |
+| 2 | P1 | Critical | `P1` / `Crit` | `yellow` / `color3` / `orange` | the theme accent |
+| 3 | P2 | Major | `P2` / `Maj` | `green` / `color2` | the theme accent |
+| 4 | P3 | Normal | `P3` / `Norm` | `blue` / `color4` / `cyan` | the theme accent |
+| 5 | P4 | Minor | `P4` / `Min` | `muted` / `color8` / `dark_foreground` | `Color.muted` |
 
-Other priority names, including YouTrack's defaults (Show-stopper, Critical,
-Major, Normal, Minor), are still counted and listed, after P0–P4 in
-alphabetical order, in the surrounding foreground color. A ticket with no
-priority is grouped under `None`.
+Names are matched case-insensitively. The bar uses the short label, and the
+popup and tooltip use the full name. Anything of rank 1 turns the pill urgent.
+
+If your project uses other names, list them in the `priorities` setting, most
+urgent first, comma-separated. Add `=Label` to give one a shorter bar label:
+
+```
+Urgent=U, High=H, Medium=M, Low=L
+```
+
+A custom list replaces the built-in scales. Its first five entries take the
+colors above, and any after that are gray.
+
+Priorities that aren't on the scale are still counted and listed, after the
+known ones in alphabetical order, in the surrounding foreground color. A ticket
+with no priority is grouped under `None`; if every ticket lands there, check
+the field name.
 
 `colors.toml` is watched, and re-read whenever the shell's own palette changes,
 so a theme switch repaints the widget without a restart.
@@ -159,7 +176,8 @@ rm ~/.config/omarchy/youtrack.env
 
 ## Development
 
-`Model.js` holds the grouping, label, and formatting logic; `Panel.qml` is the
+`Model.js` holds the grouping, priority scale, label, and formatting logic, with
+tests in `tests/` (`node --test tests/`); `Panel.qml` is the
 bar pill plus the popup; `youtrack-fetch` talks to the YouTrack REST API.
 
 Saving `Model.js` or `Panel.qml` reloads the plugin registry, but the widget

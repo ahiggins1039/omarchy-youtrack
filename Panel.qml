@@ -10,7 +10,7 @@ import "Model.js" as Model
 // YouTrack tickets assigned to you, counted by priority.
 //
 // The bar shows the collapsed state only — "P0:1 P1:4 P2:7" — and the pill
-// takes the urgent color while any P0 is open. Clicking opens the popup with
+// takes the urgent color while anything of the top priority is open. Clicking opens the popup with
 // the same tickets listed under a heading per priority.
 Panel {
   id: root
@@ -25,6 +25,9 @@ Panel {
   readonly property string query: String(setting("query", "for: me #Unresolved"))
   readonly property int refreshIntervalSec: Math.max(30, Number(setting("refreshIntervalSec", 300)) || 300)
   readonly property string emptyLabel: String(setting("emptyLabel", "YT:0"))
+  // Empty means "let youtrack-fetch decide": YOUTRACK_PRIORITY_FIELD, else "Priority".
+  readonly property string priorityField: String(setting("priorityField", "")).trim()
+  readonly property var scale: Model.makeScale(setting("priorities", ""))
 
   property var issues: []
   property string baseUrl: ""
@@ -55,19 +58,19 @@ Panel {
 
   // `groups` always covers the whole query and drives the bar; the popup lists
   // `shownGroups`, which the search box narrows or YouTrack's results replace.
-  readonly property var groups: Model.groupByPriority(issues)
-  readonly property var shownGroups: Model.groupByPriority(showingRemote ? remoteIssues : Model.filterIssues(issues, searchText))
+  readonly property var groups: Model.groupByPriority(issues, scale)
+  readonly property var shownGroups: Model.groupByPriority(showingRemote ? remoteIssues : Model.filterIssues(issues, searchText), scale)
   readonly property var rows: Model.flatten(shownGroups)
   readonly property int total: Model.totalCount(groups)
-  readonly property bool hasBlocker: Model.hasPriority(groups, "P0")
+  readonly property bool hasBlocker: Model.hasTopPriority(groups, scale)
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
-  // Priority colors, read from the active theme's colors.toml: P0 red,
-  // P1 yellow, P2 green, P3 blue, P4 gray. A theme missing one of those roles
+  // Priority colors by rank, read from the active theme's colors.toml: red,
+  // yellow, green, blue, then gray. A theme missing one of those roles
   // falls back to a shell color that always exists.
   property var themeColors: ({})
 
@@ -85,7 +88,7 @@ Panel {
   // `fallback` is the surrounding foreground, which differs between the bar
   // pill and the popup, so each caller passes its own.
   function priorityColor(priority, fallback) {
-    return colorForKey(Model.colorKeyFor(priority), fallback)
+    return colorForKey(Model.colorKeyFor(priority, scale), fallback)
   }
 
   function colorForKey(key, fallback) {
@@ -102,7 +105,7 @@ Panel {
   // A vertical bar has no room for the breakdown, so it shows the total and
   // keeps the per-priority counts in the tooltip.
   readonly property string barLabel: lastError !== "" ? "YT!" : (total > 0 ? String(total) : emptyLabel)
-  readonly property var barSegments: Model.barSegments(groups, emptyLabel, lastError !== "")
+  readonly property var barSegments: Model.barSegments(groups, emptyLabel, lastError !== "", scale)
 
   readonly property string tooltipText: {
     if (lastError !== "") return "YouTrack: " + lastError
@@ -113,7 +116,7 @@ Panel {
   function refresh() {
     if (loading) return
     loading = true
-    fetchProcess.command = ["bash", root.fetchScript, root.query]
+    fetchProcess.command = ["bash", root.fetchScript, root.query, root.priorityField]
     fetchProcess.running = true
   }
 
@@ -139,7 +142,7 @@ Panel {
   function startRemoteSearch() {
     remoteInFlight = remotePending
     remoteLoading = true
-    remoteProcess.command = ["bash", root.fetchScript, remoteInFlight]
+    remoteProcess.command = ["bash", root.fetchScript, remoteInFlight, root.priorityField]
     remoteProcess.running = true
   }
 
@@ -327,7 +330,7 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    // Horizontally the pill is the segment row below, which colors the P0 pair
+    // Horizontally the pill is the segment row below, which colors the top pair
     // on its own; the built-in single-color label only serves a vertical bar.
     text: root.vertical ? root.barLabel : ""
     labelVisible: root.vertical

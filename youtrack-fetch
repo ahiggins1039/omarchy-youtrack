@@ -7,7 +7,10 @@
 #   {"ok":true,"query":"...","issues":[{"id":"sys-1","priority":"P1",...}]}
 #   {"ok":false,"error":"...","issues":[]}
 #
-# Usage: youtrack-fetch [query]
+# Usage: youtrack-fetch [query] [priority-field]
+#
+# The priority is read from the custom field named by the second argument,
+# else YOUTRACK_PRIORITY_FIELD from the config file, else "Priority".
 
 set -uo pipefail
 
@@ -38,6 +41,9 @@ token="${YOUTRACK_TOKEN:-}"
 query="${1:-${YOUTRACK_QUERY:-}}"
 [[ -n $query ]] || query='for: me #Unresolved'
 
+priority_field="${2:-${YOUTRACK_PRIORITY_FIELD:-}}"
+[[ -n $priority_field ]] || priority_field='Priority'
+
 fields='idReadable,summary,updated,project(shortName),customFields(name,value(name))'
 
 # The status code is appended on its own line so a non-200 body can still be
@@ -58,7 +64,7 @@ if [[ $status != 200 ]]; then
   fail "YouTrack returned HTTP ${status}${detail:+: $detail}"
 fi
 
-jq -c --arg base "${url%/}" --arg query "$query" '
+jq -c --arg base "${url%/}" --arg query "$query" --arg priority_field "$priority_field" '
   # Custom field values are single objects for enum fields but can arrive as
   # arrays for multi-value fields, and as null when the field is unset.
   def name_of($v):
@@ -75,7 +81,7 @@ jq -c --arg base "${url%/}" --arg query "$query" '
     issues: [ .[] | {
       id: (.idReadable // ""),
       summary: (.summary // ""),
-      priority: (field(.; "Priority") | if . == "" then "None" else . end),
+      priority: (field(.; $priority_field) | if . == "" then "None" else . end),
       state: field(.; "State"),
       type: field(.; "Type"),
       project: (.project.shortName // ""),
