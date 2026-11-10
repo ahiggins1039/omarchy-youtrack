@@ -53,7 +53,7 @@ jobs:
           shellcheck --severity=warning youtrack-fetch tests/youtrack-fetch.test.sh .githooks/pre-commit
 
       - name: Model tests
-        run: node --test tests/
+        run: node --test tests/model.test.js
 
       - name: youtrack-fetch tests
         run: bash tests/youtrack-fetch.test.sh

@@ -1,4 +1,4 @@
-// Run with: node --test tests/
+// Run with: node --test tests/model.test.js
 // Model.js is a QML JavaScript library, so it is loaded into a plain context
 // with its `.pragma library` line stripped.
 const test = require("node:test")

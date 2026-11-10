@@ -183,7 +183,7 @@ rm ~/.config/omarchy/youtrack.env
 ## Development
 
 `Model.js` holds the grouping, priority scale, label, and formatting logic, with
-tests in `tests/` (`node --test tests/`); `Panel.qml` is the
+tests in `tests/` (`node --test tests/model.test.js`); `Panel.qml` is the
 bar pill plus the popup; `youtrack-fetch` talks to the YouTrack REST API.
 
 Saving `Model.js` or `Panel.qml` reloads the plugin registry, but the widget
