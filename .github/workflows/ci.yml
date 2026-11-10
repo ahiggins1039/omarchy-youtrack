@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # The marketplace's required fields, plus the bar-widget entry point
+      # existing. `omarchy plugin validate` does the full check locally.
+      - name: Validate manifest
+        run: |
+          jq -e '
+            (.schemaVersion | type == "number")
+            and ([.id, .name, .version, .author, .description] | all(type == "string" and length > 0))
+            and (.id | startswith("omarchy.") | not)
+            and (.kinds | index("bar-widget"))
+            and (.entryPoints.barWidget | type == "string")
+          ' manifest.json >/dev/null
+          test -f "$(jq -r .entryPoints.barWidget manifest.json)"
+          test -f LICENSE
+          test -z "$(find . -path ./.git -prune -o -type l -print)"
+
+      - name: Check shell scripts
+        run: |
+          bash -n youtrack-fetch tests/youtrack-fetch.test.sh .githooks/pre-commit
+          shellcheck --severity=warning youtrack-fetch tests/youtrack-fetch.test.sh .githooks/pre-commit
+
+      - name: Model tests
+        run: node --test tests/
+
+      - name: youtrack-fetch tests
+        run: bash tests/youtrack-fetch.test.sh
+
+      # Same patterns as .githooks/pre-commit, over everything tracked, in case
+      # a commit was made without the hook enabled.
+      - name: Scan for committed secrets
+        run: |
+          if git ls-files | grep -E '(^|/)\.env|\.env$' | grep -v '\.env\.example$'; then
+            echo "::error::env file committed"; exit 1
+          fi
+          if git grep -nE 'perm[:-][A-Za-z0-9._-]{12,}|Bearer [A-Za-z0-9._-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'; then
+            echo "::error::possible secret committed"; exit 1
+          fi
