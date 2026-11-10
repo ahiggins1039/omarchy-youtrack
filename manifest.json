@@ -6,6 +6,15 @@
   "author": "Allan Higgins",
   "license": "MIT",
   "description": "Tickets assigned to you in YouTrack, counted by priority in the bar and listed by priority in a popup.",
+  "homepage": "https://github.com/ahiggins1039/omarchy-youtrack",
+  "repository": "https://github.com/ahiggins1039/omarchy-youtrack",
+  "keywords": [
+    "youtrack",
+    "jetbrains",
+    "issues",
+    "tickets",
+    "issue-tracker"
+  ],
   "kinds": [
     "bar-widget"
   ],
