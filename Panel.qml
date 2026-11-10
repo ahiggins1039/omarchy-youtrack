@@ -16,8 +16,8 @@ import "Model.js" as Model
 // the same tickets listed under a heading per priority.
 Panel {
   id: root
-  moduleName: "al.youtrack"
-  ipcTarget: "al.youtrack"
+  moduleName: "ahiggins1039.youtrack"
+  ipcTarget: "ahiggins1039.youtrack"
   manageIpc: false
 
   // Trailing slash included, so the script name appends directly.

@@ -23,7 +23,7 @@ Works with YouTrack Cloud and self-hosted YouTrack.
 
 ```bash
 omarchy plugin add https://github.com/ahiggins1039/omarchy-youtrack
-omarchy plugin enable al.youtrack right
+omarchy plugin enable ahiggins1039.youtrack right
 ```
 
 Then set up your credentials (below). Until you do, the bar reads `YT!` and its
@@ -169,14 +169,14 @@ so a theme switch repaints the widget without a restart.
 what the widget sees, including any error:
 
 ```bash
-~/.config/omarchy/plugins/al.youtrack/youtrack-fetch
+~/.config/omarchy/plugins/ahiggins1039.youtrack/youtrack-fetch
 ```
 
 ## Uninstall
 
 ```bash
-omarchy plugin disable al.youtrack
-omarchy plugin remove al.youtrack
+omarchy plugin disable ahiggins1039.youtrack
+omarchy plugin remove ahiggins1039.youtrack
 rm ~/.config/omarchy/youtrack.env
 ```
 
