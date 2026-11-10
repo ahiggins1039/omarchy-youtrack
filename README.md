@@ -11,6 +11,8 @@ search box that can also query all of YouTrack.
 
 Works with YouTrack Cloud and self-hosted YouTrack.
 
+![The bar pill and popup, showing demo tickets](preview.png)
+
 ## Requirements
 
 - Omarchy with the plugin shell
@@ -51,6 +53,10 @@ tooltip says what is missing.
    `https://youtrack.example.com` or `https://example.com/youtrack`.
 
 Set `YOUTRACK_CONFIG` to use a different file.
+
+To try the widget before creating a token, put `YOUTRACK_DEMO=1` in the file
+instead. It then shows made-up tickets and never contacts YouTrack; remove the
+line once your real credentials are in.
 
 > **Note:** the file is loaded with bash's `source`, so it runs as a shell
 > script every time the widget refreshes. Keep it to plain `NAME="value"` lines
